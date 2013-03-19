@@ -3,7 +3,7 @@ use strict;
 use warnings;
 use v5.10;
 use Data::Dump qw(dd dump);
-use File::Temp;
+use File::Copy::Recursive qw(rcopy);
 use FindBin qw($RealBin);
 use IO::File;
 use IPC::Run qw(run timeout);
@@ -14,19 +14,18 @@ use POSIX qw(setgid);
 use Try::Tiny;
 use YAML qw(LoadFile);
 
-my $CONFIG = LoadFile("$RealBin/../config.yml");
 my $AGENT = LWP::UserAgent->new(ssl_opts => { verify_hostname => 0 });
-my $log_path = "/tmp/worker.log";
-my $LOG = IO::File->new($log_path, 'a')
-    or die "Could not open $log_path : $!\n";
+my $config = LoadFile("$RealBin/../config.yml");
+my $log_file = $config->{log_file} || "/tmp/codejail.log";
+open my $LOG, '>>', $log_file or die "Could not open $log_file : $!\n";
 $LOG->autoflush(1);
 STDOUT->autoflush(1);
-my $jail = $CONFIG->{jail_path} or die "No jail_path configured";
-my $queue = $CONFIG->{queue} || '/queue/codejail';
+my $jail = $config->{jail_path} or die "No jail_path configured";
+my $queue = $config->{queue} || '/queue/codejail';
 
 my $stomp = Net::Stomp->new({
-    hostname => $CONFIG->{plugins}{Stomp}{default}{hostname},
-    port     => $CONFIG->{plugins}{Stomp}{default}{port},
+    hostname => $config->{plugins}{Stomp}{default}{hostname},
+    port     => $config->{plugins}{Stomp}{default}{port},
     reconnect_on_fork => 0,
 });
 $stomp->connect();
@@ -90,6 +89,13 @@ sub run_code {
     my $result = join '', @out;
     debug('output: ' . substr $result, 0, 100);
     debug("full: $result");
+
+    # Copy result files out of the jail
+    if (my $results_path = $data->{copy_results_path}) {
+        my $run_id  = $data->{run_id} || 'unknown';
+        my $target_dir = "$RealBin/../results/$run_id";
+        rcopy "$jail/$results_path", $target_dir;
+    }
 
     # Lets clean up after ourselves.
     #sys("rm -rf $jail");
