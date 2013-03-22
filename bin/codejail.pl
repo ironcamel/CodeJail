@@ -139,6 +139,18 @@ sub run_in_chroot {
         sys("tar xf $bundle_path -C $chroot_run_dir")
             or die "Could not expand bundle $bundle_path $!";
     }
+    if (my $url = $data->{lib_bundle_url}) {
+        debug("getting bundle from $url");
+        my $lib_dir = "$jail/usr/local/lib/codejail";
+        my $bundle_path = "$lib_dir/bundle.tar";
+        my $res = $AGENT->mirror($url, $bundle_path);
+        debug($res->status_line);
+        if (!$res->is_success and $res->code != 304) {
+            die "Could not download bundle: " . $res->status_line;
+        }
+        sys("tar xf $bundle_path -C $lib_dir")
+            or die "Could not expand bundle $bundle_path $!";
+    }
 
     debug("chroot $jail");
     chroot $jail or die "Could not chroot: $!";
@@ -209,10 +221,7 @@ sub post_result {
     debug($res->status_line);
 }
 
-sub debug {
-    print $LOG '[' . localtime . '] (DEBUG) ';
-    say $LOG dump(@_);
-}
+sub debug { say $LOG '[' . localtime . '] (DEBUG) ' . dump(@_) }
 
 sub log_msg {
     my $data = shift;
