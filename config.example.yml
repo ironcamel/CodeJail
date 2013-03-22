@@ -1,0 +1,9 @@
+charset: UTF-8
+
+#queue: /queue/codejail
+jail_path: '/var/arch-chroot'
+plugins:
+  Stomp:
+    default:
+      hostname: localhost
+      port: 61613
