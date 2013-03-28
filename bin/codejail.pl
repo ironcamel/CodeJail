@@ -73,6 +73,9 @@ sub process_msg {
 sub run_code {
     my ($data) = @_;
 
+    sys("rm -rf $jail/home/sandbox/runs/*");
+    #sys("tar -xf $jail.tar -C /var") or die "Could not build chroot jail: $!";
+
     my $pid = open my $child_process, '-|';
     if (!$pid) { # child process starts here
         try {
@@ -98,22 +101,20 @@ sub run_code {
     }
 
     # Lets clean up after ourselves.
-    #sys("rm -rf $jail");
+    #sys("rm -rf $jail/home/sandbox/runs/*");
 
     return $result;
 }
 
 sub run_in_chroot {
     my ($data) = @_;
-    my $lang      = $data->{language};
-    my $code      = $data->{code};
-    my $file_name = $data->{file_name};
-    my $problem   = $data->{problem};
-    my $input     = $problem->{input};
-
-    debug("Setting up chroot ...");
-    #sys("rm -rf $jail");
-    #sys("tar -xf $jail.tar -C /var") or die "Could not build chroot jail: $!";
+    my $lang        = $data->{language};
+    my $code        = $data->{code};
+    my $file_name   = $data->{file_name} // 'foo';
+    my $problem     = $data->{problem};
+    my $compile_cmd = $data->{compile_cmd};
+    my $run_cmd     = $data->{run_cmd};
+    my $input       = $problem->{input};
 
     chdir $jail or die "Failed to chdir into $jail: $!";
 
@@ -189,13 +190,19 @@ sub run_in_chroot {
             @cmd =($lang, $path);
         }
         default {
-            die "Language [$lang] is not supported yet\n";
+            open my $f, '>', $file_name;
+            print $f $code;
+            if ($compile_cmd) {
+                debug("compiling: ", $compile_cmd);
+                run $compile_cmd;
+            }
+            @cmd = @$run_cmd;
         }
     }
 
     debug("going to run: @cmd");
     try {
-        run(\@cmd, \$input, \$out, \$err, timeout(3));
+        run \@cmd, \$input, \$out, \$err, timeout(3);
     } catch {
         print "Took too long $_\n";
     };
