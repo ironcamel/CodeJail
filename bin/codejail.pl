@@ -4,6 +4,7 @@ use warnings;
 use v5.10;
 use Data::Dump qw(dd dump);
 use File::Copy::Recursive qw(rcopy);
+use File::Slurp qw(write_file);
 use FindBin qw($RealBin);
 use IO::File;
 use IPC::Run qw(run timeout);
@@ -108,7 +109,6 @@ sub run_code {
 
 sub run_in_chroot {
     my ($data) = @_;
-    my $lang        = $data->{language};
     my $code        = $data->{code};
     my $file_name   = $data->{file_name} // 'foo';
     my $problem     = $data->{problem};
@@ -165,44 +165,16 @@ sub run_in_chroot {
     debug("chdir $run_dir");
     chdir $run_dir or die "Could not chdir to $run_dir: $!";
 
-    my ($out, $err, @cmd) = ('', '');
-    given ($lang) {
-        when ('java') {
-            my $class_name = (split /\./, $file_name)[0];
-            my $path = $file_name;
-            open my $java_file, '>', $path;
-            print $java_file $code;
-            my $compile_cmd = $data->{compile_cmd} || "javac $path";
-            sys($compile_cmd) or die "Failed to compile java code: $!";
-            @cmd = ($lang, $class_name);
-        }
-        when ('c++') {
-            my $path = 'foo.cpp';
-            open my $c_file, '>', $path or die "Could not create c file: $!";
-            print $c_file $code;
-            sys("g++ -o foo $path") or die "Failed to compile c code: $!";
-            @cmd = ('./foo');
-        }
-        when ([qw(perl python ruby)]) {
-            my $path = 'foo';
-            open my $p_file, '>', $path;
-            print $p_file $code;
-            @cmd =($lang, $path);
-        }
-        default {
-            open my $f, '>', $file_name;
-            print $f $code;
-            if ($compile_cmd) {
-                debug("compiling: ", $compile_cmd);
-                run $compile_cmd;
-            }
-            @cmd = @$run_cmd;
-        }
+    write_file $file_name, $code;
+    if ($compile_cmd) {
+        debug("compiling: ", $compile_cmd);
+        run $compile_cmd;
     }
 
-    debug("going to run: @cmd");
+    my ($out, $err) = ('', '');
+    debug("going to run: @$run_cmd");
     try {
-        run \@cmd, \$input, \$out, \$err, timeout(3);
+        run $run_cmd, \$input, \$out, \$err, timeout(3);
     } catch {
         print "Took too long $_\n";
     };

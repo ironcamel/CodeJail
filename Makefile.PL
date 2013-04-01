@@ -10,6 +10,7 @@ WriteMakefile(
         'Dancer::Plugin::Stomp' => '1.0302',
         'Data::Dump'            => '0',
         'File::Copy::Recursive' => '0',
+        'File::Slurp'           => '0',
         'FindBin'               => '0',
         'IO::File'              => '0',
         'IPC::Run'              => '0',
