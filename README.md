@@ -34,4 +34,16 @@ same server as the CodeJail worker.
 
 # Configuration
 
+    cp config.example.yml config.yml
+
+Edit the `config.yml` file accordingly.
+
 # Usage
+
+Start the message queue:
+
+    sudo mq.pl
+
+Start the codejail worker:
+
+    sudo ./bin/codejail.pl
